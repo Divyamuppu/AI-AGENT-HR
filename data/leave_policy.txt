@@ -1,0 +1,17 @@
+Employees with less than 2 years of experience are eligible for 12 annual leave days per year.
+Employees with 2 or more years of experience are eligible for 18 annual leave days per year.
+All employees are eligible for 10 sick leave days per year.
+Medical certificate is required if sick leave exceeds 3 consecutive days.
+A maximum of 5 unused annual leave days can be carried forward to the next year.
+Annual Leave Policy:
+• Freshers: 12 days per year
+• Employees with 2+ years: 18 days per year
+• Carry forward: Max 5 days
+
+
+Casual Leave Policy
+
+Employees are eligible for 6 casual leave days per year.
+Casual leave should be applied at least one day in advance.
+Casual leave cannot be taken without prior notice except emergencies.
+
