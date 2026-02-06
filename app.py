@@ -3,264 +3,235 @@ import streamlit as st
 import google.generativeai as genai
 import chromadb
 from sentence_transformers import SentenceTransformer
-import google.generativeai as genai
-
-st.markdown("""
-<style>
-html, body {
-    height: 100%;
-    background: linear-gradient(
-        135deg,
-        #e0ecff,
-        #c7ddff,
-        #b6d4ff
-    ) !important;
-}
-
-/* Streamlit main container */
-.stApp {
-    background: linear-gradient(
-        135deg,
-        #e0ecff,
-        #c7ddff,
-        #b6d4ff
-    ) !important;
-}
-
-/* Streamlit internal wrapper */
-[data-testid="stAppViewContainer"] {
-    background: linear-gradient(
-        135deg,
-        #e0ecff,
-        #c7ddff,
-        #b6d4ff
-    ) !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
+from dotenv import load_dotenv
 
 # ===========================
-# STREAMLIT CONFIG
+# LOAD ENV
+# ===========================
+load_dotenv()
+
+# ===========================
+# PAGE CONFIG
 # ===========================
 st.set_page_config(page_title="HR AI Agent", layout="centered")
 
 # ===========================
-# GLOBAL BACKGROUND (BLUE)
-# ===========================
-# st.markdown("""
-# <style>
-# html, body, [class*="css"] {
-#     background: linear-gradient(
-#         135deg,
-#         #e0ecff,
-#         #c7ddff,
-#         #b6d4ff
-#     ) !important;
-# }
-# </style>
-# """, unsafe_allow_html=True)
-
-# ===========================
-# UI STYLING
+# STYLES
 # ===========================
 st.markdown("""
 <style>
+html, body, .stApp {
+    background: linear-gradient(135deg,#e0ecff,#c7ddff,#b6d4ff)!important;
+}
 .block-container {
-    max-width: 720px;
-    margin-top: 12vh;
-    background: white;
-    border-radius: 20px;
-    padding: 2.5rem;
-
-    /* NEW */
-    border: 2px solid #000000;
-    box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+    max-width:760px;
+    margin-top:15vh;
+    background:white;
+    border-radius:22px;
+    padding:2.5rem;
+    border:2px solid black;
+}
+/* Question input box ONLY – black border */
+div[data-testid="stTextInput"] input {
+    border: 2px solid #000 !important;
+    border-radius: 12px !important;
+    padding: 10px !important;
 }
 
-h1 {
-    text-align: center;
-    color: #1f2937;
+
+.stButton > button {
+    border-radius:16px;
+    font-weight:600;
+    border:2px solid #000;
+    background:#1d4ed8;
+    color:white;
+    height:64px;
+}
+.app-title {
+    text-align:center;
+    font-size:3rem;
+    font-weight:700;
+    margin-bottom:1.5rem;
+}
+/* FAQ / Pluck buttons – FINAL, WORKING */
+div[data-testid="stColumn"] .stButton > button {
+    border-radius:16px !important;
+    font-weight:600 !important;
+    border:2px solid #000 !important;
+    background:linear-gradient(135deg,#1e3a8a,#1d4ed8) !important;
+    color:#ffffff !important;
+    height:64px;
+    transition: all 0.25s ease;
 }
 
-input {
-    background: #f9fafb !important;
-    border-radius: 10px !important;
-    border: 1px solid #000000 !important;
-}
-
-.stButton>button {
-    background: #2563eb !important;
-    color: white !important;
-    border-radius: 10px !important;
-    font-weight: 600;
-    padding: 0.65rem 1.4rem;
-    width: 100%;
-}
-
-.stButton>button:hover {
-    background: #1e40af !important;
-}
-
-.card {
-    background: #f1f5f9;
-    border: 1px solid #000000;
-    border-radius: 14px;
-    padding: 1rem;
-    cursor: pointer;
-    text-align: center;
-    font-size: 0.95rem;
-    color: #1f2937;
-    transition: all 0.2s ease;
-}
-
-.card:hover {
-    background: #e0e7ff;
+div[data-testid="stColumn"] .stButton > button:hover {
     transform: translateY(-3px);
+    box-shadow:0 10px 20px rgba(0,0,0,0.35);
 }
 
-.stSuccess {
-    background: #eff6ff !important;
-    border-left: 6px solid #2563eb;
-    padding: 16px;
-    border-radius: 12px;
-    font-size: 15px;
-}
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("<div class='app-title'>🤖 HR AI Agent</div>", unsafe_allow_html=True)
+
 # ===========================
-# GEMINI
+# GEMINI CONFIG
 # ===========================
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 llm = genai.GenerativeModel("models/gemini-2.5-flash")
 
-# ===========================
-# HELPERS
-# ===========================
-def load_docs():
-    return [
-        open(f"data/{f}", encoding="utf-8").read()
-        for f in os.listdir("data")
-    ]
+def ask_gemini(prompt: str) -> str:
+    res = llm.generate_content(prompt)
+    return res.text.strip()
 
+# ===========================
+# EMBEDDINGS
+# ===========================
 @st.cache_resource
-def embedder():
+def get_embedder():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
-@st.cache_resource
-def chroma_client():
-    return chromadb.Client(
-        settings=chromadb.Settings(persist_directory="chroma_db")
-    )
+embedder = get_embedder()
 
 # ===========================
-# INIT DATABASES
+# CHROMADB (PERSISTENT)
 # ===========================
-embed = embedder()
-client = chroma_client()
+client = chromadb.Client(
+    settings=chromadb.Settings(persist_directory="chroma_db")
+)
 
 policy_db = client.get_or_create_collection("hr_policies")
 memory_db = client.get_or_create_collection("qa_memory")
 
+# # 🔥 TEMPORARY – RUN ONCE
+# memory_db.delete(where={})
+
+
+
+def load_policies():
+    docs = []
+    for file in os.listdir("data"):
+        if file.endswith(".txt"):
+            with open(os.path.join("data", file), encoding="utf-8") as f:
+                text = f.read()
+
+                # Split by sentences, not lines
+                for chunk in text.split("."):
+                    chunk = chunk.strip()
+                    if len(chunk) > 30:
+                        docs.append(chunk + ".")
+    return docs
+
+
+
 if policy_db.count() == 0:
-    for i, doc in enumerate(load_docs()):
+    for i, doc in enumerate(load_policies()):
         policy_db.add(
+            ids=[f"policy_{i}"],
             documents=[doc],
-            ids=[str(i)],
-            embeddings=[embed.encode(doc).tolist()]
+            embeddings=[embedder.encode(doc).tolist()]
         )
 
 # ===========================
-# LLM HELPERS
+# UI (TYPE OR CLICK – BOTH WORK)
 # ===========================
-def summarize_from_policy(context, question):
-    prompt = f"""
-Answer in ONE short sentence.
-Use ONLY the policy text.
-
-Policy:
-{context}
-
-Question:
-{question}
-"""
-    return llm.generate_content(prompt).text.strip()
-
-def llm_fallback(question):
-    prompt = f"""
-Answer in ONE short sentence.
-If unsure, say: "Not specified in current HR policy."
-
-Question:
-{question}
-"""
-    return llm.generate_content(prompt).text.strip()
-
-# ===========================
-# UI
-# ===========================
-st.title("🤖 HR AI Agent")
-
-if "question_input" not in st.session_state:
-    st.session_state.question_input = ""
+if "q" not in st.session_state:
+    st.session_state.q = ""
 
 question = st.text_input(
     "Ask your HR question",
-    placeholder="e.g., What is the notice period?",
-    value=st.session_state.question_input
+    value=st.session_state.q,
+    placeholder="Can leaves be carried forward?"
 )
 
-# -------- GET ANSWER BUTTON --------
-if st.button("Get Answer"):
-    if question.strip():
-        q_embedding = embed.encode(question).tolist()
+st.markdown("##### 💡 Frequently Asked Questions")
 
-        # STEP 1: MEMORY
-        mem = memory_db.query(query_embeddings=[q_embedding], n_results=1)
+c1, c2, c3 = st.columns(3)
 
-        if (
-            mem.get("documents")
-            and mem["documents"][0]
-            and mem.get("distances")
-            and mem["distances"][0][0] < 0.15
-        ):
-            st.info("🔁 Answered from memory")
-            answer = mem["documents"][0][0]
+with c1:
+    if st.button("Can leaves be carried forward?", use_container_width=True):
+        st.session_state.q = "Can leaves be carried forward?"
+        st.rerun()
 
-        else:
-            # STEP 2: POLICY
-            pol = policy_db.query(query_embeddings=[q_embedding], n_results=1)
-            policy_context = pol["documents"][0][0] if pol.get("documents") else ""
+with c2:
+    if st.button("What is the work from home policy?", use_container_width=True):
+        st.session_state.q = "What is the work from home policy?"
+        st.rerun()
 
-            if policy_context.strip():
-                answer = summarize_from_policy(policy_context, question)
-            else:
-                answer = llm_fallback(question)
+with c3:
+    if st.button("What is the notice period?", use_container_width=True):
+        st.session_state.q = "What is the notice period?"
+        st.rerun()
 
+
+
+# ===========================
+# ANSWER FLOW (STRICT ORDER)
+# ===========================
+if question.strip():
+    q_emb = embedder.encode(question).tolist()
+
+    # 1️⃣ QA MEMORY (HIGHEST PRIORITY)
+    mem = memory_db.query(
+        query_embeddings=[q_emb],
+        n_results=1,
+        include=["documents", "distances"]
+    )
+
+    if mem["documents"] and mem["documents"][0] and mem["distances"][0][0] < 0.15:
+        st.info("Answered from QA memory")
+        st.success(mem["documents"][0][0])
+        st.stop()
+
+    # 2️⃣ POLICY DOCUMENTS (RAG – MUST CHECK)
+    pol = policy_db.query(
+        query_embeddings=[q_emb],
+        n_results=1,
+        include=["documents"]
+    )
+
+    if pol["documents"] and pol["documents"][0]:
+        policy_text = pol["documents"][0][0]
+
+        prompt = f"""
+Extract the answer ONLY if it is explicitly stated in the policy text.
+If the answer is not explicitly stated, return exactly: NOT_FOUND
+
+Policy:
+{policy_text}
+
+Question:
+{question}
+
+Return ONE short factual sentence.
+"""
+        answer = ask_gemini(prompt)
+
+        if answer.strip().upper() != "NOT_FOUND":
             memory_db.add(
+                ids=[f"mem_{memory_db.count()}"],
                 documents=[answer],
-                embeddings=[q_embedding],
-                metadatas=[{"question": question}],
-                ids=[f"mem_{memory_db.count()}"]
+                embeddings=[q_emb],
+                metadatas=[{"question": question, "source": "policy"}]
             )
+            st.success(answer)
+            st.stop()
 
-        st.success(answer)
-    else:
-        st.warning("Please enter a question.")
+    # 3️⃣ LLM GENERATION (LAST RESORT ONLY)
+    prompt = f"""
+You are an internal HR assistant for this company.
+Answer briefly in ONE sentence.
 
-# -------- FREQUENTLY ASKED --------
-st.markdown("### 💡 Frequently Asked")
+Question:
+{question}
+"""
+    answer = ask_gemini(prompt)
 
-cols = st.columns(3)
-suggestions = [
-    "What is the notice period?",
-    "Can I take casual leave?",
-    "What is the WFH policy?"
-]
+    memory_db.add(
+        ids=[f"mem_{memory_db.count()}"],
+        documents=[answer],
+        embeddings=[q_emb],
+        metadatas=[{"question": question, "source": "llm"}]
+    )
 
-for col, text in zip(cols, suggestions):
-    with col:
-        if st.button(text, key=text):
-            st.session_state.question_input = text
-            st.rerun()
+    st.success(answer)
