@@ -1,9 +1,10 @@
 import os
 import streamlit as st
-import google.generativeai as genai
 import chromadb
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
+from google import genai
+
 
 # ===========================
 # LOAD ENV
@@ -77,12 +78,14 @@ st.markdown("<div class='app-title'>🤖 HR AI Agent</div>", unsafe_allow_html=T
 # ===========================
 # GEMINI CONFIG
 # ===========================
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-llm = genai.GenerativeModel("models/gemini-2.5-flash")
+from google import genai
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
-def ask_gemini(prompt: str) -> str:
-    res = llm.generate_content(prompt)
-    return res.text.strip()
+response = client.models.generate_content(
+    model="gemini-1.5-pro",
+    contents=prompt
+)
+
 
 # ===========================
 # EMBEDDINGS
